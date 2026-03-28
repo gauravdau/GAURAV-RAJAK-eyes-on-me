@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>🏏 Cricket Live List Hub</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+      color: #fff;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 15px;
+    }
+    .container { width: 100%; max-width: 450px; }
+    
+    .main-card {
+      background: rgba(0, 0, 0, 0.7);
+      border-radius: 15px;
+      padding: 20px;
+      text-align: center;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      border: 1px solid rgba(255,255,255,0.1);
+      margin-bottom: 20px;
+    }
+    .score { font-size: 2.2rem; color: #ffcc00; font-weight: 800; margin: 10px 0; }
+    .status-badge { background: #e91e63; padding: 4px 12px; border-radius: 15px; font-size: 0.75rem; display: inline-block; }
+
+    .list-title { margin: 15px 0 10px; font-size: 1.1rem; color: #00d4ff; border-left: 4px solid #ffcc00; padding-left: 10px; }
+    
+    #match-list-container {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: 350px;
+      overflow-y: auto;
+      padding-right: 5px;
+    }
+    
+    .match-item {
+      background: rgba(255, 255, 255, 0.08);
+      padding: 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .match-item:active { transform: scale(0.98); background: rgba(255, 255, 255, 0.15); }
+    .match-item h4 { font-size: 0.9rem; margin-bottom: 3px; }
+    .match-item p { font-size: 0.75rem; color: #aaa; }
+
+    #refresh-btn {
+      width: 100%; padding: 12px; background: #ffcc00; border: none; border-radius: 10px;
+      font-weight: bold; margin-top: 15px; cursor: pointer; color: #000;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header style="text-align:center; margin-bottom:15px;">
+    <h1 style="color:#ffcc00; font-size: 1.8rem;">🏏 Live Score Hub</h1>
+    <p id="msg" style="font-size:0.8rem; color:#00ffcc">Tap refresh to start</p>
+  </header>
+
+  <div class="main-card">
+    <div id="m-status" class="status-badge">Select Match Below</div>
+    <h2 id="m-teams" style="margin-top:10px; font-size: 1.2rem;">Ready to load...</h2>
+    <div id="m-score" class="score">0/0</div>
+    <p id="m-venue" style="font-size:0.75rem; opacity:0.6">-</p>
+  </div>
+
+  <h3 class="list-title">Live & Recent Matches</h3>
+  <div id="match-list-container">
+    </div>
+
+  <button id="refresh-btn" onclick="loadData()">🔄 UPDATE MATCH LIST</button>
+</div>
+
+<script>
+  const API_KEY = "4b1da9701amshea3482f2c53e0a1p177115jsn4b3e383a19fc";
+  
+  async function loadData() {
+    const msg = document.getElementById("msg");
+    const container = document.getElementById("match-list-container");
+    
+    msg.innerText = "Fetching data... Please wait";
+    container.innerHTML = "<p style='text-align:center; opacity:0.5'>Loading list...</p>";
+
+    // Using a proxy to bypass CORS if needed
+    const url = 'https://cricbuzz-cricket.p.rapidapi.com/matches/v1/recent';
+    
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'x-rapidapi-key': API_KEY,
+          'x-rapidapi-host': 'cricbuzz-cricket.p.rapidapi.com'
+        }
+      });
+
+      const data = await response.json();
+      container.innerHTML = ""; // Clear loader
+
+      let matchCount = 0;
+
+      // Extracting matches from nested Cricbuzz structure
+      data.typeMatches.forEach(typeObj => {
+        typeObj.seriesMatches.forEach(series => {
+          if (series.seriesAdWrapper) {
+            series.seriesAdWrapper.matches.forEach(m => {
+              matchCount++;
+              const info = m.matchInfo;
+              const score = m.matchScore;
+
+              const div = document.createElement("div");
+              div.className = "match-item";
+              div.onclick = () => {
+                document.getElementById("m-teams").innerText = `${info.team1.teamName} vs ${info.team2.teamName}`;
+                document.getElementById("m-status").innerText = info.status;
+                document.getElementById("m-venue").innerText = info.venueInfo.ground;
+                
+                if (score && score.team1Score) {
+                  const s = score.team1Score.inngs1;
+                  document.getElementById("m-score").innerText = `${s.runs}/${s.wickets || 0} (${s.overs || 0})`;
+                } else {
+                  document.getElementById("m-score").innerText = "No Score Yet";
+                }
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              };
+
+              div.innerHTML = `
+                <h4>${info.team1.teamName} vs ${info.team2.teamName}</h4>
+                <p>${info.status}</p>
+                <small style="color:#00d4ff">${info.matchFormat} • ${info.venueInfo.city}</small>
+              `;
+              container.appendChild(div);
+            });
+          }
+        });
+      });
+
+      if(matchCount === 0) {
+        container.innerHTML = "<p style='text-align:center;'>No matches found right now.</p>";
+      }
+      msg.innerText = "Sync Complete ✅";
+
+    } catch (err) {
+      console.error(err);
+      msg.innerText = "Connection Failed! Try again.";
+      container.innerHTML = "<p style='text-align:center; color:red;'>Check your Internet or API Key limit.</p>";
+    }
+  }
+
+  // Auto-run on load
+  window.onload = loadData;
+</script>
+
+</body>
+</html>
